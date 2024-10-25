@@ -1,76 +1,85 @@
-import random
 import Obstacle
+import Player
+from random import randint
+import math
+import pygame
+import Zombie
 
+def circles_collide(pos1, r1, pos2, r2):
+    distance = pos1.distance_to(pos2)
 
-def circles_collide(x1, y1, r1, x2, y2, r2):
-    distance = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
     return distance < r1 + r2
 
 
-def ray_circle_intersection(ray_x1, ray_y1, ray_x2, ray_y2, circle):
-    dx = ray_x2 - ray_x1
-    dy = ray_y2 - ray_y1
-    fx = ray_x1 - circle.x
-    fy = ray_y1 - circle.y
+def ray_circle_intersection(ray1, ray2, circle):
+    d_ray = ray2 - ray1
+    d_ray_cir = ray1 - circle.position
 
-    a = dx * dx + dy * dy
-    b = 2 * (fx * dx + fy * dy)
-    c = (fx * fx + fy * fy) - circle.radius * circle.radius
+    a = d_ray.dot(d_ray)
+    b = 2 * d_ray.dot(d_ray_cir)
+    c = d_ray_cir.dot(d_ray_cir) - circle.radius ** 2
 
-    discriminant = b * b - 4 * a * c
+    discriminant = b ** 2 - 4 * a * c
     if discriminant >= 0:
         discriminant = math.sqrt(discriminant)
         t1 = (-b - discriminant) / (2 * a)
         t2 = (-b + discriminant) / (2 * a)
 
         if t1 >= 0 and t1 <= 1:
-            return ray_x1 + t1 * dx, ray_y1 + t1 * dy
+            return ray1 + pygame.Vector2(t1 * d_ray.x, t1 * d_ray.y)
         if t2 >= 0 and t2 <= 1:
-            return ray_x1 + t2 * dx, ray_y1 + t2 * dy
+            return ray1 + pygame.Vector2(t2 * d_ray.x, t2 * d_ray.y)
 
     return None
 
-def generate_obstacles(count):
+def generate_obstacles(boundaries):
     obstacles = []
     spawned = 0
-    while (spawned != count):
-        radius = random.randint(OBSTACLE_MIN_RADIUS, OBSTACLE_MAX_RADIUS)
 
-        x = random.randint(radius, SCREEN_WIDTH - radius)
-        y = random.randint(radius, SCREEN_HEIGHT - radius)
+    while (spawned != Obstacle.OBSTACLE_COUNT):
+        radius = randint(Obstacle.OBSTACLE_MIN_RADIUS, Obstacle.OBSTACLE_MAX_RADIUS)
+        r_e_o = radius + Zombie.ENEMY_RADIUS * 2
+        
+        position = pygame.Vector2(randint(r_e_o, boundaries[0] - r_e_o), randint(r_e_o, boundaries[1] - r_e_o))
+        
+        player_starting_pos = pygame.Vector2(boundaries[0] // 2, boundaries[1] // 2)
 
-        if circles_collide(x, y, radius, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, PLAYER_SIZE):
+        if circles_collide(position, radius, player_starting_pos, Player.PLAYER_SIZE):
             continue
         
         skip = False
         for obstacle in obstacles:
-            if circles_collide(x, y, radius + PLAYER_SIZE * 1.5, obstacle.x, obstacle.y, obstacle.radius):
+            if circles_collide(position, radius + Player.PLAYER_SIZE * 2, obstacle.position, obstacle.radius):
                 skip = True
                 break
         
         if skip:
             continue    
 
-        obstacles.append(Obstacle(x, y, radius))
+        obstacles.append(Obstacle.Obstacle(position, radius))
         spawned += 1
+
     return obstacles
 
-def generate_enemies(count, obstacles):
+def generate_enemies(obstacles, boundaries):
     enemies = []
     spawned = 0
-    while(spawned != count):
-        radius = random.randint(ENEMY_MIN_RADIUS, ENEMY_MAX_RADIUS)
-        x = random.randint(radius, SCREEN_WIDTH - radius)
-        y = random.randint(radius, SCREEN_HEIGHT - radius)
+    while(spawned != Zombie.ENEMY_COUNT):
+        radius = Zombie.ENEMY_RADIUS
+        position = pygame.Vector2(randint(radius, boundaries[0] - radius), randint(radius, boundaries[1] - radius))
 
-        # Sprawdzanie, czy nowe koło (przeciwnik) nie koliduje z przeszkodami
         collision = False
+
+        player_spawn = pygame.Vector2(boundaries[0] // 2, boundaries[1] // 2)
+        if circles_collide(position, radius, player_spawn, Player.PLAYER_SAFE_SPACE):
+            continue
+
         for obstacle in obstacles:
-            if circles_collide(x, y, radius, obstacle.x, obstacle.y, obstacle.radius):
+            if circles_collide(position, radius, obstacle.position, obstacle.radius):
                 collision = True
                 break
 
         if not collision:
-            enemies.append(Zombie(x, y, radius))
+            enemies.append(Zombie.Zombie(position))
             spawned += 1
     return enemies

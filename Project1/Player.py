@@ -1,99 +1,151 @@
 import pygame
+import math
+import Bullet
 
 # Ustawienia gracza
 PLAYER_COLOR = (0, 255, 0)
-PLAYER_SPEED = 5
+PLAYER_SPEED = 2
 PLAYER_SIZE = 20
-PLAYER_ROTATION_SPEED = 5
 PLAYER_VISION_RADIUS = 1000 
 SHOOT_COOLDOWN = 500
+PLAYER_SAFE_SPACE = 200
+FOG_COLOR = (0, 0, 0, 255)
 
 # Klasa gracza
 class Player:
-    def __init__(self, x, y, size):
-        self.x = x
-        self.y = y
-        self.size = size
-        self.speed = PLAYER_SPEED
+    def __init__(self, pos):
+        self.position = pygame.Vector2(pos)
         self.angle = 0
-        self.target_angle = 0
-        self.vel_x = 0
-        self.vel_y = 0
-        self.vision_radius = PLAYER_VISION_RADIUS
+        self.velocity = pygame.Vector2(0, 0)
         self.last_shot_time = 0
+        self.health = 1
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
 
-        self.vel_x = 0
-        self.vel_y = 0
+        self.velocity = pygame.Vector2(0, 0)
+
         if keys[pygame.K_w] or keys[pygame.K_UP]:
-            self.vel_y = -1
+            self.velocity.y = -1
         if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            self.vel_y = 1
+            self.velocity.y = 1
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            self.vel_x = -1
+            self.velocity.x = -1
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            self.vel_x = 1
+            self.velocity.x = 1
 
-        vel_len = math.sqrt(self.vel_x ** 2 + self.vel_y ** 2) if math.sqrt(self.vel_x ** 2 + self.vel_y ** 2) > 0 else 1
-        self.vel_x /= vel_len
-        self.vel_y /= vel_len
+        if self.velocity != pygame.Vector2(0, 0):
+            self.velocity.normalize_ip()
+        self.velocity *= PLAYER_SPEED
 
-        self.x += self.vel_x * self.speed
-        self.y += self.vel_y * self.speed
-
-        if self.x - self.size < 0:
-            self.x = self.size
-        if self.x + self.size > SCREEN_WIDTH:
-            self.x = SCREEN_WIDTH - self.size
-        if self.y - self.size < 0:
-            self.y = self.size
-        if self.y + self.size > SCREEN_HEIGHT:
-            self.y = SCREEN_HEIGHT - self.size
+    def move(self):
+        self.position += self.velocity
 
     def check_collision(self, obstacles):
+        
         for obstacle in obstacles:
-            if circles_collide(self.x, self.y, self.size, obstacle.x, obstacle.y, obstacle.radius):
-                self.x -= self.vel_x * self.speed
-                self.y -= self.vel_y * self.speed
+            if Utility.circles_collide(self.position, PLAYER_SIZE, obstacle.position, obstacle.radius):
+                
+                dist = self.position - obstacle.position
+                self.position = obstacle.position + dist.normalize() * (obstacle.radius + PLAYER_SIZE)
+
+    def check_bounds(self, boundaries):
+        x = PLAYER_SIZE if self.position.x - PLAYER_SIZE < 0 else self.position.x
+        y = PLAYER_SIZE if self.position.y - PLAYER_SIZE < 0 else self.position.y
+
+        x = boundaries[0] - PLAYER_SIZE if x + PLAYER_SIZE > boundaries[0] else x
+        y = boundaries[1] - PLAYER_SIZE if y + PLAYER_SIZE > boundaries[1] else y
+
+        self.position = pygame.Vector2(x, y)
 
     def update_angle(self):
-        mouse_x, mouse_y = pygame.mouse.get_pos()
-        rel_x, rel_y = mouse_x - self.x, mouse_y - self.y
-        self.angle = math.degrees(math.atan2(-rel_y, rel_x))
+        mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
+        rel_mouse_pos = mouse_pos - self.position
+        self.angle = math.atan2(-rel_mouse_pos.y, rel_mouse_pos.x)
 
     def shoot(self, bullets):
         current_time = pygame.time.get_ticks()
         if current_time - self.last_shot_time >= SHOOT_COOLDOWN:
 
-            bullet_dx = math.cos(math.radians(self.angle))
-            bullet_dy = -math.sin(math.radians(self.angle))
-            bullets.append(Bullet(self.x, self.y, bullet_dx, bullet_dy))
+            bullet_vel = pygame.Vector2(math.cos(self.angle), -math.sin(self.angle))
+            bullets.append(Bullet.Bullet(self.position, bullet_vel))
             self.last_shot_time = current_time
 
     def draw(self, screen):
+        points = []
+        for angle_shift in range(-120, 240, 120):
+            angle = self.angle + math.radians(angle_shift)
+            angle_vec = pygame.Vector2(math.cos(angle), -math.sin(angle))
+            points.append(self.position + PLAYER_SIZE * angle_vec)
 
-        points = [
-            (self.x + self.size * math.cos(math.radians(self.angle)),
-             self.y - self.size * math.sin(math.radians(self.angle))),
-            (self.x + self.size * math.cos(math.radians(self.angle + 120)),
-             self.y - self.size * math.sin(math.radians(self.angle + 120))),
-            (self.x + self.size * math.cos(math.radians(self.angle - 120)),
-             self.y - self.size * math.sin(math.radians(self.angle - 120))),
-        ]
         pygame.draw.polygon(screen, PLAYER_COLOR, points)
 
-    def draw_vision(self, fog_surface, obstacles):
-        mult = 10
-        for angle in range(0, 360 * mult, 1):
-            angle = angle / mult
-            ray_end_x = self.x + self.vision_radius * math.cos(math.radians(angle))
-            ray_end_y = self.y - self.vision_radius * math.sin(math.radians(angle))
+    def draw_vision(self, fog_surface, obstacles, bounds):
+        for obstacle in obstacles:
+            d = self.position - obstacle.position
+            dist = self.position.distance_to(obstacle.position)
 
-            for obstacle in obstacles:
-                collision_point = ray_circle_intersection(self.x, self.y, ray_end_x, ray_end_y, obstacle)
-                if collision_point:
-                    ray_end_x, ray_end_y = collision_point
-            
-            pygame.draw.line(fog_surface, (0, 0, 0, 0), (self.x, self.y), (ray_end_x, ray_end_y), 2)
+            if dist > obstacle.radius:
+                n = pygame.Vector2(d.y, -d.x).normalize()
+                
+                fog_points = []
+
+                fog_points.append(obstacle.position + obstacle.radius * n)
+                fog_points.append(obstacle.position - obstacle.radius * n)
+                fog_points.append(self.tangent_to_border(self.position, fog_points[1], bounds))
+                fog_points.append(self.tangent_to_border(self.position, fog_points[0], bounds))
+                fog_points = self.add_bound_points(fog_points, bounds)
+
+                pygame.draw.circle(fog_surface, FOG_COLOR, obstacle.position, obstacle.radius - 5)
+                pygame.draw.polygon(fog_surface, FOG_COLOR, fog_points)
+
+    def add_bound_points(self, f_points, bounds):
+        point1 = f_points[2]
+        point2 = f_points[3]
+        if (point1.x != point2.x and point1.y != point2.y):
+            x = list(set([point1.x, point2.x]) & set([0, bounds[0]]))
+            y = list(set([point1.y, point2.y]) & set([0, bounds[1]]))
+            if len(x) == 0 and self.position.x < point1.x:
+                f_points.insert(3, pygame.Vector2(bounds[0], y[0]))
+                f_points.insert(3, pygame.Vector2(bounds[0], y[1]))
+            elif len(x) == 0 and self.position.x > point1.x:
+                f_points.insert(3, pygame.Vector2(0, y[0]))
+                f_points.insert(3, pygame.Vector2(0, y[1]))
+            elif len(y) == 0 and self.position.y < point1.y:
+                f_points.insert(3, pygame.Vector2(x[0], bounds[1]))
+                f_points.insert(3, pygame.Vector2(x[1], bounds[1]))
+            elif len(y) == 0 and self.position.y > point1.y:
+                f_points.insert(3, pygame.Vector2(x[1], 0))
+                f_points.insert(3, pygame.Vector2(x[0], 0))
+            else:
+                f_points.insert(3, pygame.Vector2(x[0], y[0]))
+        return f_points
+
+    def is_dead(self):
+        return self.health == 0 
+
+    def tangent_to_border(self, start, tangent, bounds):
+        direction = tangent - start
+        norm_dir = direction.normalize()
+
+        d = pygame.Vector2(0, 0).distance_to(pygame.Vector2(bounds))
+
+        end = start + norm_dir * d
+
+        if end.x < 0:
+            end.x = 0
+            end.y = start.y + norm_dir.y * (-start.x) / norm_dir.x
+        elif end.x > bounds[0]:
+            end.x = bounds[0]
+            end.y = start.y + norm_dir.y * (bounds[0] - start.x) / norm_dir.x
+        
+        if end.y < 0:
+            end.x = start.x + norm_dir.x * (-start.y) / norm_dir.y
+            end.y = 0
+        elif end.y > bounds[1]:
+            end.x = start.x + norm_dir.x * (bounds[1] - start.y) / norm_dir.y
+            end.y = bounds[1]
+        
+        return end
+
+import Utility

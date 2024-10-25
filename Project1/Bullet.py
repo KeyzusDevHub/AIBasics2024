@@ -1,52 +1,49 @@
+import pygame
 # Ustawienia pocisków
-BULLET_COLOR = BLACK
+BULLET_COLOR = (0, 0, 0)
 BULLET_SPEED = 10
-BULLET_LIFETIME = 1000
+BULLET_SIZE = 5
 
 
 # Klasa dla pocisków
 class Bullet:
-    def __init__(self, x, y, dx, dy):
-        self.x = x
-        self.y = y
-        self.vel_x = dx
-        self.vel_y = dy
-
-        vel_len = math.sqrt(self.vel_x ** 2 + self.vel_y ** 2)
-        self.vel_x /= vel_len
-        self.vel_y /= vel_len
-
-        self.lifetime = BULLET_LIFETIME
+    def __init__(self, pos, vel):
+        self.position = pygame.Vector2(pos)
+        self.velocity = vel.normalize()
 
     def move(self):
-        self.x += self.vel_x * BULLET_SPEED
-        self.y += self.vel_y * BULLET_SPEED
+        self.position += self.velocity * BULLET_SPEED
 
-        self.lifetime -= 16
-
-    def check_collision(self, enemies, zombie_groups):
-
+    def check_collision(self, enemies, obstacles, boundaries, player):
+                
         for enemy in enemies:
-            if circles_collide(self.x, self.y, 3, enemy.x, enemy.y, enemy.radius):
+            if Utility.circles_collide(self.position, BULLET_SIZE, enemy.position, enemy.radius):
+                if enemy.leader == enemy:
+                    followers = list(filter(lambda x: x.leader == enemy and x.leader != x, enemies))
+                    if followers:
+                        followers_sorted = sorted(followers, key=lambda x: x.position.distance_to(player.position))
+                        new_leader = followers_sorted[0]
+                        for member in followers:
+                            member.set_leader(new_leader)
+                        if enemy.mode == "hunt":
+                            new_leader.set_hunt_state()
                 enemies.remove(enemy)
                 return True 
 
-        for group in zombie_groups:
-            if circles_collide(self.x, self.y, 3, group.leader.x, group.leader.y, group.leader.radius):
-                group.new_leader()
-                return True
-            
-            for member in group.members:
-                if circles_collide(self.x, self.y, 3, member.x, member.y, member.radius):
-                    group.members.remove(member)
-                    return True
-
         for obstacle in obstacles:
-            if circles_collide(self.x, self.y, 3, obstacle.x, obstacle.y, obstacle.radius):
+            if Utility.circles_collide(self.position, BULLET_SIZE, obstacle.position, obstacle.radius):
                 return True
         
-        return False
+
+        return self.check_out_of_bounds(boundaries)
+
+    def check_out_of_bounds(self, boundaries):
+        out_of_x = self.position.x < 0 or self.position.x > boundaries[0]
+        out_of_y = self.position.y < 0 or self.position.y > boundaries[1]
+        return out_of_x or out_of_y
 
     def draw(self, screen):
 
-        pygame.draw.line(screen, BULLET_COLOR, (self.x, self.y), (self.x + self.vel_x * 5, self.y + self.vel_y * 5), 2)
+        pygame.draw.line(screen, BULLET_COLOR, self.position, self.position + self.velocity * BULLET_SIZE, 2)
+
+import Utility

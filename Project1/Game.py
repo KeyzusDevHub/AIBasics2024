@@ -8,13 +8,15 @@ import Zombie
 import Obstacle
 
 # Stałe rozmiary ekranu
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+SCREEN_WIDTH = 1400
+SCREEN_HEIGHT = 800
 
 # Kolory
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-FOG_COLOR = (0, 0, 0, 150)
+BACKGROUND_COLOR = (255, 255, 255)
+FOG_COLOR = (0, 0, 0, 0)
+
+# Brzegi ekranu
+BOUNDARIES = (SCREEN_WIDTH, SCREEN_HEIGHT)
 
 # Inicjalizacja pygame
 pygame.init()
@@ -23,26 +25,65 @@ pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Gra o strzelaniu przez trójkątnego gracza do okrągłych zombie z kolistymi przeszkodami, mgłą wojny i sztuczną inteligencją opartą o emergentne zachowania")
 
-obstacles = Utility.generate_obstacles(Obstacle.OBSTACLE_COUNT)
-enemies = Utility.generate_enemies(Zombie.ENEMY_COUNT, obstacles)
+def lose_screen(screen):
+    font = pygame.font.Font(None, 150)
 
-player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, Player.PLAYER_SIZE)
+    text_surface = font.render("Zombie win", True, (255, 0, 0))
+
+    text_rect = text_surface.get_rect(center=(BOUNDARIES[0] // 2, BOUNDARIES[1] // 2))
+
+    screen.blit(text_surface, text_rect)
+
+    pygame.display.flip()
+
+def win_screen(screen):
+    font = pygame.font.Font(None, 150)
+
+    text_surface = font.render("Player win", True, (0, 255, 0))
+
+    text_rect = text_surface.get_rect(center=(BOUNDARIES[0] // 2, BOUNDARIES[1] // 2))
+
+    screen.blit(text_surface, text_rect)
+
+    pygame.display.flip()
 
 
 def game_loop():
     clock = pygame.time.Clock()
     running = True
+    shooting = False
 
-    fog_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+    fog_surface = pygame.Surface(BOUNDARIES, pygame.SRCALPHA)
 
     bullets = []
-    zombie_groups = []
 
-    enemies = [Zombie(random.randint(50, SCREEN_WIDTH - 50), random.randint(50, SCREEN_HEIGHT - 50), 20) for _ in range(10)]
+    obstacles = Utility.generate_obstacles(BOUNDARIES)
 
+    enemies = Utility.generate_enemies(obstacles, BOUNDARIES)
+
+    player = Player.Player(pygame.Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
 
     while running:
-        screen.fill(WHITE)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                shooting = True
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                shooting = False
+
+        screen.fill(BACKGROUND_COLOR)
+
+        if player.is_dead():
+            screen.fill((0, 0, 0))
+            lose_screen(screen)
+            continue
+        
+        elif len(enemies) == 0:
+            screen.fill((0, 0, 0))
+            win_screen(screen)
+            continue
 
         for obstacle in obstacles:
             obstacle.draw(screen)
@@ -50,65 +91,66 @@ def game_loop():
         for bullet in bullets:
             bullet.draw(screen)
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
 
         player.handle_input()
 
+        player.move()
+
         player.check_collision(obstacles)
+
+        player.check_bounds([SCREEN_WIDTH, SCREEN_HEIGHT])
 
         player.update_angle()
 
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        
+
+        if shooting:
             player.shoot(bullets)
 
-        for bullet in bullets[:]:
+        for bullet in bullets:
             bullet.move()
 
-            if bullet.check_collision(enemies, zombie_groups):
+            if bullet.check_collision(enemies, obstacles, BOUNDARIES, player):
                 bullets.remove(bullet)
-            elif bullet.lifetime <= 0:
-                bullets.remove(bullet)
-
-
+                enemies = sorted(enemies, key=lambda x: x == x.leader)
 
         for zombie in enemies:
-            if not any(zombie in group.members or zombie == group.leader for group in zombie_groups):
-                nearby_zombies = [z for z in enemies if z != zombie and math.sqrt((z.x - zombie.x) ** 2 + (z.y - zombie.y) ** 2) < 100]
+            if zombie.leader == None:
+                nearby_zombies = [z for z in enemies if z != zombie and z.leader == None and z.position.distance_to(zombie.position) < 100]
                 if nearby_zombies:
-                    leader = zombie
-                    group = ZombieGroup(leader)
-                    enemies.remove(leader)
+                    zombie.set_leader(zombie)
                     for z in nearby_zombies:
-                        group.add_member(z)
-                        enemies.remove(z)
-                    zombie_groups.append(group)
+                        z.set_leader(zombie)
 
+        zombie_leaders = list(filter(lambda x: x.leader == x, enemies))
+        enemies = sorted(enemies, key=lambda x: x == x.leader)
 
-        for i, group in enumerate(zombie_groups):
-            for j, o_group in enumerate(zombie_groups):
-                if i != j and group.leader != None and o_group.leader != None:
-                    distance = math.sqrt((group.leader.x - o_group.leader.x) ** 2 + (group.leader.y - o_group.leader.y) ** 2)
+        for leader in zombie_leaders:
+            for o_leader in zombie_leaders:
+                if leader != o_leader:
+                    distance = leader.position.distance_to(o_leader.position)
                     if distance < 100:
-                        group.merge_with(o_group)
+                        o_leader_followers = list(filter(lambda x: x.leader == o_leader, enemies))
+                        for member in o_leader_followers:
+                            member.set_leader(leader)
 
-        for group in zombie_groups:
-            if group.leader == None:
-                zombie_groups.remove(group)
-
-        for group in zombie_groups:
-            group.move(obstacles, player)
-            group.draw(screen)
+        for leader in zombie_leaders:
+            if len(list(filter(lambda x: x.leader == leader, enemies))) > 5:
+                leader.set_hunt_state()
 
         for zombie in enemies:
-            if not any(zombie in group.members or zombie == group.leader for group in zombie_groups):
-                zombie.move(obstacles, player)
-                zombie.draw(screen)
+            zombie.move(obstacles, player, BOUNDARIES)
+            zombie.draw(screen)
+
+        for zombie in enemies:
+            for o_zombie in enemies:
+                zombie.clamp_zombie_positions(o_zombie)
+            if Utility.circles_collide(zombie.position, Zombie.ENEMY_RADIUS, player.position, Player.PLAYER_SIZE):
+                player.health -= 1
 
         fog_surface.fill(FOG_COLOR)
 
-        player.draw_vision(fog_surface, obstacles)
+        player.draw_vision(fog_surface, obstacles, BOUNDARIES)
 
         screen.blit(fog_surface, (0, 0))
 
