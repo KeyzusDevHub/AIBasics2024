@@ -110,7 +110,7 @@ def game_loop():
         for bullet in bullets:
             bullet.move()
 
-            if bullet.check_collision(enemies, obstacles, BOUNDARIES, player):
+            if bullet.check_collision(enemies, obstacles, BOUNDARIES):
                 bullets.remove(bullet)
 
         # Szukanie pobliskich zombie do ataku
