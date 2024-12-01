@@ -4,7 +4,7 @@ import pygame
 OBSTACLE_COLOR = (255, 0, 0)
 OBSTACLE_MIN_RADIUS = 30
 OBSTACLE_MAX_RADIUS = 80
-OBSTACLE_COUNT = 30
+OBSTACLE_COUNT = 10
 
 # Klasa do rysowania przeszkód (kolistych)
 class Obstacle:

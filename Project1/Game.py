@@ -1,11 +1,8 @@
 import pygame
-import random
 import sys
-import math
 import Utility
 import Player
 import Zombie
-import Obstacle
 
 # Stałe rozmiary ekranu
 SCREEN_WIDTH = 1400
@@ -13,7 +10,7 @@ SCREEN_HEIGHT = 800
 
 # Kolory
 BACKGROUND_COLOR = (255, 255, 255)
-FOG_COLOR = (0, 0, 0, 0)
+VISION_COLOR = (0, 0, 0, 0)
 
 # Brzegi ekranu
 BOUNDARIES = (SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -25,6 +22,7 @@ pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Gra o strzelaniu przez trójkątnego gracza do okrągłych zombie z kolistymi przeszkodami, mgłą wojny i sztuczną inteligencją opartą o emergentne zachowania")
 
+# Plansza po przegranej
 def lose_screen(screen):
     font = pygame.font.Font(None, 150)
 
@@ -36,6 +34,7 @@ def lose_screen(screen):
 
     pygame.display.flip()
 
+# Plansza po wygranej
 def win_screen(screen):
     font = pygame.font.Font(None, 150)
 
@@ -47,7 +46,7 @@ def win_screen(screen):
 
     pygame.display.flip()
 
-
+# Petla gry
 def game_loop():
     clock = pygame.time.Clock()
     running = True
@@ -63,8 +62,12 @@ def game_loop():
 
     player = Player.Player(pygame.Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
 
+    for enemy in enemies:
+        enemy.steering.set_zombie_list(enemies)
+
     while running:
 
+        # Obsluga podstawowych zdarzen
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -75,6 +78,7 @@ def game_loop():
 
         screen.fill(BACKGROUND_COLOR)
 
+        # Obsluga konca gry
         if player.is_dead():
             screen.fill((0, 0, 0))
             lose_screen(screen)
@@ -85,77 +89,55 @@ def game_loop():
             win_screen(screen)
             continue
 
+        # Rysowanie przeszkod i pociskow
         for obstacle in obstacles:
             obstacle.draw(screen)
 
         for bullet in bullets:
             bullet.draw(screen)
 
-
+        # Blok obslugi gracza
         player.handle_input()
-
         player.move()
-
         player.check_collision(obstacles)
-
         player.check_bounds([SCREEN_WIDTH, SCREEN_HEIGHT])
-
         player.update_angle()
-
-        
 
         if shooting:
             player.shoot(bullets)
 
+        # Sprawdzenie kolizji pociskow
         for bullet in bullets:
             bullet.move()
 
             if bullet.check_collision(enemies, obstacles, BOUNDARIES, player):
                 bullets.remove(bullet)
-                enemies = sorted(enemies, key=lambda x: x == x.leader)
 
+        # Szukanie pobliskich zombie do ataku
         for zombie in enemies:
-            if zombie.leader == None:
-                nearby_zombies = [z for z in enemies if z != zombie and z.leader == None and z.position.distance_to(zombie.position) < 100]
-                if nearby_zombies:
-                    zombie.set_leader(zombie)
+            if zombie.mode != "hunt":
+                nearby_zombies = [z for z in enemies if z.mode != "hunt" and z.position.distance_to(zombie.position) < 150]
+                if len(nearby_zombies) >= 5:
                     for z in nearby_zombies:
-                        z.set_leader(zombie)
+                        z.set_hunt_state()
 
-        zombie_leaders = list(filter(lambda x: x.leader == x, enemies))
-        enemies = sorted(enemies, key=lambda x: x == x.leader)
-
-        for leader in zombie_leaders:
-            for o_leader in zombie_leaders:
-                if leader != o_leader:
-                    distance = leader.position.distance_to(o_leader.position)
-                    if distance < 100:
-                        o_leader_followers = list(filter(lambda x: x.leader == o_leader, enemies))
-                        for member in o_leader_followers:
-                            member.set_leader(leader)
-
-        for leader in zombie_leaders:
-            if len(list(filter(lambda x: x.leader == leader, enemies))) > 5:
-                leader.set_hunt_state()
-
+        # Ruch zombie
         for zombie in enemies:
-            zombie.move(obstacles, player, BOUNDARIES)
+            zombie.move(obstacles, player, BOUNDARIES, clock.get_fps() / 1000)
             zombie.draw(screen)
 
+        # Poprawa pozycji zombie i sprawdzenie czy trafily gracza
         for zombie in enemies:
             for o_zombie in enemies:
                 zombie.clamp_zombie_positions(o_zombie)
             if Utility.circles_collide(zombie.position, Zombie.ENEMY_RADIUS, player.position, Player.PLAYER_SIZE):
                 player.health -= 1
 
-        fog_surface.fill(FOG_COLOR)
-
+        # Rysowanie wizji planszy
+        fog_surface.fill(VISION_COLOR)
         player.draw_vision(fog_surface, obstacles, BOUNDARIES)
-
         screen.blit(fog_surface, (0, 0))
-
         player.draw(screen)
-
         pygame.display.flip()
 
         clock.tick(60)

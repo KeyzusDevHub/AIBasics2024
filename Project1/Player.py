@@ -9,10 +9,11 @@ PLAYER_SIZE = 20
 PLAYER_VISION_RADIUS = 1000 
 SHOOT_COOLDOWN = 500
 PLAYER_SAFE_SPACE = 200
-FOG_COLOR = (0, 0, 0, 255)
+FOG_COLOR = (0, 0, 0, 155)
 
 # Klasa gracza
 class Player:
+
     def __init__(self, pos):
         self.position = pygame.Vector2(pos)
         self.angle = 0
@@ -20,6 +21,7 @@ class Player:
         self.last_shot_time = 0
         self.health = 1
 
+    # Sterowanie gracza
     def handle_input(self):
         keys = pygame.key.get_pressed()
 
@@ -38,9 +40,11 @@ class Player:
             self.velocity.normalize_ip()
         self.velocity *= PLAYER_SPEED
 
+    # Poruszanie gracza
     def move(self):
         self.position += self.velocity
 
+    # Sprawdzanie kolizji z przeszkodami
     def check_collision(self, obstacles):
         
         for obstacle in obstacles:
@@ -49,6 +53,7 @@ class Player:
                 dist = self.position - obstacle.position
                 self.position = obstacle.position + dist.normalize() * (obstacle.radius + PLAYER_SIZE)
 
+    # Sprawdzanie kolizji z brzegami mapy
     def check_bounds(self, boundaries):
         x = PLAYER_SIZE if self.position.x - PLAYER_SIZE < 0 else self.position.x
         y = PLAYER_SIZE if self.position.y - PLAYER_SIZE < 0 else self.position.y
@@ -58,11 +63,13 @@ class Player:
 
         self.position = pygame.Vector2(x, y)
 
+    # Zmiana kata gracza
     def update_angle(self):
         mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
         rel_mouse_pos = mouse_pos - self.position
         self.angle = math.atan2(-rel_mouse_pos.y, rel_mouse_pos.x)
 
+    # Strzelanie
     def shoot(self, bullets):
         current_time = pygame.time.get_ticks()
         if current_time - self.last_shot_time >= SHOOT_COOLDOWN:
@@ -71,6 +78,7 @@ class Player:
             bullets.append(Bullet.Bullet(self.position, bullet_vel))
             self.last_shot_time = current_time
 
+    # Rysowanie gracza
     def draw(self, screen):
         points = []
         for angle_shift in range(-120, 240, 120):
@@ -80,6 +88,7 @@ class Player:
 
         pygame.draw.polygon(screen, PLAYER_COLOR, points)
 
+    # Rysowanie pola 'widoku' gracza. Realnie - czesci ktorej nie widzi
     def draw_vision(self, fog_surface, obstacles, bounds):
         for obstacle in obstacles:
             d = self.position - obstacle.position
@@ -99,6 +108,7 @@ class Player:
                 pygame.draw.circle(fog_surface, FOG_COLOR, obstacle.position, obstacle.radius - 5)
                 pygame.draw.polygon(fog_surface, FOG_COLOR, fog_points)
 
+    # Dodanie punktow brzegowych mapy do listy 'mgly wojny'
     def add_bound_points(self, f_points, bounds):
         point1 = f_points[2]
         point2 = f_points[3]
@@ -106,8 +116,8 @@ class Player:
             x = list(set([point1.x, point2.x]) & set([0, bounds[0]]))
             y = list(set([point1.y, point2.y]) & set([0, bounds[1]]))
             if len(x) == 0 and self.position.x < point1.x:
-                f_points.insert(3, pygame.Vector2(bounds[0], y[0]))
                 f_points.insert(3, pygame.Vector2(bounds[0], y[1]))
+                f_points.insert(3, pygame.Vector2(bounds[0], y[0]))
             elif len(x) == 0 and self.position.x > point1.x:
                 f_points.insert(3, pygame.Vector2(0, y[0]))
                 f_points.insert(3, pygame.Vector2(0, y[1]))
@@ -121,9 +131,11 @@ class Player:
                 f_points.insert(3, pygame.Vector2(x[0], y[0]))
         return f_points
 
+    # Stan zdrowia gracza
     def is_dead(self):
         return self.health == 0 
 
+    # Wyliczanie linii od stycznej (do przeszkody) az do granicy mapy
     def tangent_to_border(self, start, tangent, bounds):
         direction = tangent - start
         norm_dir = direction.normalize()

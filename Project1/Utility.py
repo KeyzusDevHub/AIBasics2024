@@ -5,12 +5,13 @@ import math
 import pygame
 import Zombie
 
+# Kolizje miedzy kolami
 def circles_collide(pos1, r1, pos2, r2):
     distance = pos1.distance_to(pos2)
 
     return distance < r1 + r2
 
-
+# Kolizja miedzy promieniem a kolem
 def ray_circle_intersection(ray1, ray2, circle):
     d_ray = ray2 - ray1
     d_ray_cir = ray1 - circle.position
@@ -32,6 +33,7 @@ def ray_circle_intersection(ray1, ray2, circle):
 
     return None
 
+# Generowanie przeszkod
 def generate_obstacles(boundaries):
     obstacles = []
     spawned = 0
@@ -61,6 +63,7 @@ def generate_obstacles(boundaries):
 
     return obstacles
 
+# Generowanie przeciwnikow
 def generate_enemies(obstacles, boundaries):
     enemies = []
     spawned = 0
