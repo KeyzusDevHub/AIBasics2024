@@ -123,7 +123,7 @@ def game_loop():
 
         # Ruch zombie
         for zombie in enemies:
-            zombie.move(obstacles, player, BOUNDARIES, clock.get_fps() / 1000)
+            zombie.move(obstacles, player, BOUNDARIES, clock.get_fps() / 500)
             zombie.draw(screen)
 
         # Poprawa pozycji zombie i sprawdzenie czy trafily gracza

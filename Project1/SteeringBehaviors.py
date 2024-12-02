@@ -154,6 +154,19 @@ class SteeringBehaviors:
             return self.Seek(mass_center) * mass_center.distance_to(self.steer_target.position) / 300
         else:
             return pygame.Vector2(0, 0)
+        
+    def Separation(self):
+        nearby_zombies = list(filter(lambda x: x.position.distance_to(self.steer_target.position) <= 50, self.zombie_list))
+        if len(nearby_zombies) <= 1:
+            return pygame.Vector2(0, 0)
+        
+        force = pygame.Vector2(0, 0)
+        for zombie in nearby_zombies:
+            if zombie != self.steer_target:
+                toAgent = (self.steer_target.position - zombie.position)
+                force += toAgent.normalize() / toAgent.length()
+
+        return force
 
     # Metoda wyliczajaca wspolny kierunek ruchu dla grupy zombie
     def Alignment(self):

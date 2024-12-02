@@ -8,7 +8,7 @@ ENEMY_COLOR_WANDER = (0, 0, 255)
 ENEMY_COLOR_HUNT = (128, 0, 0)
 ENEMY_COLOR_HIDE = (0, 128, 0)
 ENEMY_RADIUS = 15
-ENEMY_COUNT = 20
+ENEMY_COUNT = 15
 ENEMY_SPEED = 2
 ENEMY_RISK_PARAM = 300
 
@@ -46,13 +46,14 @@ class Zombie:
         if self.mode == "wander":
             new_vel += self.steering.Wander()
         elif self.mode == "hide":
-            new_vel += self.steering.Hide(obstacles, player) 
+            new_vel += 10 * self.steering.Hide(obstacles, player) 
         elif self.mode == "hunt":
             self.alignment = self.steering.Alignment()
             new_vel += self.alignment
             new_vel += 5 * self.steering.Pursuit(player)
         
-        new_vel += 0.1 * self.steering.Cohesion()
+        new_vel += 0.4 * self.steering.Cohesion()
+        new_vel += 0.4 * self.steering.Separation()
         new_vel += 2 * self.steering.ObstacleAvoidance(obstacles)
         new_vel += 3 * self.steering.WallAvoidance(boundaries)
 
@@ -131,8 +132,6 @@ class Zombie:
 
             self.position += pygame.Vector2(math.cos(angle) * overlap / 2, math.sin(angle) * overlap / 2)
             o_zombie.position -= pygame.Vector2(math.cos(angle) * overlap / 2, math.sin(angle) * overlap / 2)
-            if self.mode != "hunt":
-                self.velocity = -self.velocity
 
     # Rysowanie zalezne od stanu
     def draw(self, screen):
