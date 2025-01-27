@@ -21,6 +21,7 @@ class Zombie:
         self.mode = "wander"
         self.steering = SteeringBehaviors(self)
         self.alignment = None
+        self.risk_param = ENEMY_RISK_PARAM
 
     # Ruch zombie
     def move(self, obstacles, player, boundaries, dt):
@@ -65,7 +66,7 @@ class Zombie:
         if self.mode == "hunt":
             return self.mode
         
-        if self.is_visible_to_player(player, obstacles) and self.mode == "wander" and self.position.distance_to(player.position) < ENEMY_RISK_PARAM:
+        if self.is_visible_to_player(player, obstacles) and self.mode == "wander" and self.position.distance_to(player.position) < self.risk_param:
             return "hide"
         
         return "wander" if not self.is_visible_to_player(player, obstacles) else self.mode
@@ -115,6 +116,9 @@ class Zombie:
     # Ustawienie stanu atakowania gracza
     def set_hunt_state(self):
         self.mode = "hunt"
+        
+    def change_self_risk(self):
+        self.risk_param = random.randint(300, 800)
 
     # Blokada nakladania sie na siebie przeciwnikow
     def clamp_zombie_positions(self, o_zombie):

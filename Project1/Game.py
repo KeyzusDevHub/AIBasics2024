@@ -48,6 +48,9 @@ def win_screen(screen):
 
 # Petla gry
 def game_loop():
+    
+    zombie_timer = 0
+
     clock = pygame.time.Clock()
     running = True
     shooting = False
@@ -125,7 +128,11 @@ def game_loop():
         for zombie in enemies:
             zombie.move(obstacles, player, BOUNDARIES, clock.get_fps() / 500)
             zombie.draw(screen)
-
+        if zombie_timer >= 1:
+            for zombie in enemies:
+                zombie.change_self_risk()
+            zombie_timer = 0
+            
         # Poprawa pozycji zombie i sprawdzenie czy trafily gracza
         for zombie in enemies:
             for o_zombie in enemies:
@@ -133,6 +140,9 @@ def game_loop():
             if Utility.circles_collide(zombie.position, Zombie.ENEMY_RADIUS, player.position, Player.PLAYER_SIZE):
                 player.health -= 1
 
+        if clock.get_fps() != 0:
+            zombie_timer += 1.0 / clock.get_fps()
+            
         # Rysowanie wizji planszy
         fog_surface.fill(VISION_COLOR)
         player.draw_vision(fog_surface, obstacles, BOUNDARIES)
